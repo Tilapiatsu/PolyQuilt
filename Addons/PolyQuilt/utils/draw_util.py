@@ -25,37 +25,36 @@ from gpu_extras.batch import batch_for_shader
 from .pqutil import *
 from .dpi import *
 
-vertex_shader = '''
-    uniform mat4 viewProjectionMatrix;
+dot_line_vertex_shader = '''
+uniform mat4 ProjectionMatrix;
 
-    in vec3 pos;
+in vec2 pos;
+in float dist;
+out float distance;
 
-    void main()
-    {
-        gl_Position = viewProjectionMatrix * vec4(pos, 1.0f);
-    }
+void main()
+{
+    gl_Position = ProjectionMatrix * vec4(pos,0, 1.0f);
+    distance = dist;
+}
 '''
 
-fragment_shader = '''
-    uniform vec4 color;
+dot_line_fragment_shader = '''
+uniform vec4 color;
+uniform vec2 line_t;
 
-    void main()
-    {
-        gl_FragColor = color;
-    }
+in float distance;
+
+void main()
+{
+    float t = line_t.x + line_t.y;
+    float a = mod( distance / t , 1 );
+    a = step( a , line_t.x / t );
+
+    gl_FragColor = vec4( color.rgb , color.a * a );
+}
 '''
 
-
-
-def begin_draw() :
-    pass
-
-def end_draw() :
-    pass
-
-def clear_draw() :
-    pass
-    
 def batch_draw( shader , primitiveType , content  , indices = None ) :
     if indices :
         batch = batch_for_shader(shader, primitiveType , content , indices=indices )
@@ -64,20 +63,25 @@ def batch_draw( shader , primitiveType , content  , indices = None ) :
     batch.draw(shader)
     return batch
 
-#shader2D = gpu.types.GPUShader(vertex_shader, fragment_shader)
+try :
+    shaderEx = gpu.types.GPUShader(dot_line_vertex_shader, dot_line_fragment_shader)
+except Exception as e:
+    shaderEx = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+
 shader2D = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
 shader3D = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
 
 def draw_circle2D( pos , radius , color = (1,1,1,1), fill = False , subdivide = 64 , dpi = True, width : float = 1.0  ):
     if dpi :
-        r = radius * dpm()
+        r = display.dot( radius )
     else :
         r = radius
+
     dr = math.pi * 2 / subdivide
     vertices = [( pos[0] + r * math.cos(i*dr), pos[1] + r * math.sin(i*dr)) for i in range(subdivide+1)]
 
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
-    bgl.glLineWidth(width )   
+    bgl.glLineWidth( display.dot(width) )   
     bgl.glEnable(bgl.GL_BLEND)    
     bgl.glDisable(bgl.GL_DEPTH_TEST)    
     shader2D.bind()
@@ -88,14 +92,28 @@ def draw_circle2D( pos , radius , color = (1,1,1,1), fill = False , subdivide = 
     bgl.glDisable(bgl.GL_LINE_SMOOTH)    
 
 def draw_donuts2D( pos , radius_out , width , rate , color = (1,1,1,1) ):
-    r = radius_out * dpm()
+    r = display.dot(radius_out )
     subdivide = 100
     t = int( max(min(rate,1),0)*subdivide)
     dr = math.pi * 2 / subdivide
     vertices = [( pos[0] + r * math.sin(i*dr), pos[1] + r * math.cos(i*dr)) for i in range(t+1)]
 
-    draw_lines2D( vertices , (0,0,0,color[3]*0.5) , (width )* dpm()+ 1.0  )
-    draw_lines2D( vertices , color , width* dpm()  )
+    draw_lines2D( vertices , (0,0,0,color[3]*0.5) , display.dot(width )+ 1.0  )
+    draw_lines2D( vertices , color ,  display.dot( width )  )
+
+def draw_points2D( poss , radius , color = (1,1,1,1) ):
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glDisable(bgl.GL_LINE_SMOOTH)        
+    bgl.glPointSize( display.dot( radius * 2) )
+    
+    shader2D.bind()
+    shader2D.uniform_float("color", color )
+    batch_draw(shader2D, 'POINTS', {"pos": poss} )
+
+    bgl.glPointSize(1 )
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glDisable(bgl.GL_BLEND)
+    
 
 def draw_lines2D( verts , color = (1,1,1,1) , width : float = 1.0 ):
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
@@ -108,6 +126,29 @@ def draw_lines2D( verts , color = (1,1,1,1) , width : float = 1.0 ):
     bgl.glDisable(bgl.GL_LINE_SMOOTH)    
     bgl.glDisable(bgl.GL_BLEND)
 
+def draw_dot_lines2D( verts , color = (1,1,1,1) , width : float = 2.0 , pattern = (4,2) ):
+    bgl.glEnable(bgl.GL_LINE_SMOOTH)
+    bgl.glLineWidth(width )    
+    bgl.glEnable(bgl.GL_BLEND)
+    shaderEx.bind()
+    shaderEx.uniform_float("color", color )
+#   shaderEx.uniform_float("ModelViewProjectionMatrix", bpy.context.region_data.perspective_matrix)
+    shaderEx.uniform_float("line_t", ( display.dot( pattern[0] ) , display.dot(  pattern[1] )) )
+
+    dist = [0,]
+    length = 0
+    for i in range( len(verts) - 1 ) :
+        v1 = verts[i]
+        v2 = verts[i+1]
+        length += (v1-v2).length
+        dist.append( length )
+
+    batch_draw(shaderEx, 'LINE_STRIP', {"pos": verts, "dist": dist} )
+    bgl.glLineWidth(1)
+    bgl.glDisable(bgl.GL_LINE_SMOOTH)    
+    bgl.glDisable(bgl.GL_BLEND)
+
+
 def draw_poly2D( verts , color = (1,1,1,1) ):
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
     bgl.glEnable(bgl.GL_BLEND)
@@ -117,8 +158,6 @@ def draw_poly2D( verts , color = (1,1,1,1) ):
     bgl.glDisable(bgl.GL_LINE_SMOOTH)    
     bgl.glDisable(bgl.GL_BLEND)
 
-def begin2d() :
-    bgl.glDisable(bgl.GL_DEPTH_TEST)
 
 def draw_lines3D( context , verts , color = (1,1,1,1) , width : float = 1.0 , hide_alpha : float = 1.0 , primitiveType = 'LINE_STRIP' ):
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
@@ -178,7 +217,7 @@ def draw_Poly3D( context , verts , color = (1,1,1,1) , hide_alpha = 0.5 ):
 def draw_pivots3D( poss , radius , color = (1,1,1,1) ):
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glDisable(bgl.GL_LINE_SMOOTH)        
-    bgl.glPointSize(radius * dpm() * 2 )
+    bgl.glPointSize( display.dot(radius ) )
     bgl.glDisable(bgl.GL_DEPTH_TEST)
     bgl.glDepthMask(bgl.GL_FALSE)
     
@@ -197,7 +236,8 @@ def draw_pivots3D( poss , radius , color = (1,1,1,1) ):
     bgl.glDepthMask(bgl.GL_FALSE)
 
 
-def draw_Face3D( obj , face : bmesh.types.BMFace , color = (1,1,1,1) , isFill = True ):
+
+def draw_Face3D( obj , bm : bmesh.types.BMesh , face : bmesh.types.BMFace , color = (1,1,1,1) , isFill = True ):
     bgl.glEnable(bgl.GL_BLEND)
 
     if isFill :
@@ -235,18 +275,18 @@ def draw_Edge3D( obj , edge : bmesh.types.BMEdge , color = (1,1,1,1) , width = 1
     bgl.glDisable(bgl.GL_BLEND)
 
 
-def drawElementsHilight3D( obj , elements, radius,width ,alpha, color = (1,1,1,1) ) :
+def drawElementsHilight3D( obj , bm : bmesh.types.BMesh  , elements, radius,width ,alpha, color = (1,1,1,1) ) :
     for element in elements :
-        drawElementHilight3D(obj , element, radius ,width,alpha, color)
+        drawElementHilight3D(obj , bm , element, radius ,width,alpha, color)
 
-def drawElementsHilight3DFunc( obj , elements, radius,width ,alpha, color = (1,1,1,1) ) :
-    funcs = [ drawElementHilight3DFunc(obj , e, radius ,width,alpha, color) for e in elements ]
+def drawElementsHilight3DFunc( obj , bm : bmesh.types.BMesh , elements, radius,width ,alpha, color = (1,1,1,1) ) :
+    funcs = [ drawElementHilight3DFunc(obj ,bm, e, radius ,width,alpha, color) for e in elements ]
     def func() :
         for f in funcs :
             f()
     return func
 
-def drawElementHilight3D( obj , element, radius ,width , alpha, color = (1,1,1,1) ) :
+def drawElementHilight3D( obj , bm : bmesh.types.BMesh , element, radius ,width , alpha, color = (1,1,1,1) ) :
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glDisable(bgl.GL_DEPTH_TEST)
     bgl.glDepthMask(bgl.GL_FALSE)
@@ -255,7 +295,7 @@ def drawElementHilight3D( obj , element, radius ,width , alpha, color = (1,1,1,1
         v = obj.matrix_world @ element.co
         draw_pivots3D( (v,) , radius , color )
     elif isinstance( element , bmesh.types.BMFace  ) :
-        draw_Face3D(obj,element, (color[0],color[1],color[2],color[3] * alpha) )
+        draw_Face3D(obj,bm,element, (color[0],color[1],color[2],color[3] * alpha) )
     elif isinstance( element , bmesh.types.BMEdge ) :
         draw_Edge3D(obj,element,color,width)
 
@@ -263,7 +303,7 @@ def drawElementHilight3D( obj , element, radius ,width , alpha, color = (1,1,1,1
     bgl.glDisable(bgl.GL_BLEND)  
     bgl.glDepthMask(bgl.GL_FALSE)
 
-def drawElementHilight3DFunc( obj , element, radius ,width , alpha, color = (1,1,1,1) ) :
+def drawElementHilight3DFunc( obj  , bm : bmesh.types.BMesh , element, radius ,width , alpha, color = (1,1,1,1) ) :
     matrix_world = copy.copy( obj.matrix_world )
 
     if isinstance( element , bmesh.types.BMVert ) :
@@ -276,6 +316,7 @@ def drawElementHilight3DFunc( obj , element, radius ,width , alpha, color = (1,1
     elif isinstance( element , bmesh.types.BMFace  ) :
         vs = [ matrix_world @ v.vert.co for v in element.loops ]
         polys = mathutils.geometry.tessellate_polygon( (vs,) )
+
         def draw() :
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glDisable(bgl.GL_DEPTH_TEST)
@@ -295,7 +336,7 @@ def drawElementHilight3DFunc( obj , element, radius ,width , alpha, color = (1,1
             bgl.glEnable(bgl.GL_BLEND)
 
             bgl.glEnable(bgl.GL_LINE_SMOOTH)
-            bgl.glLineWidth(width)    
+            bgl.glLineWidth( display.dot( width) )    
             bgl.glDepthFunc(bgl.GL_ALWAYS)
             bgl.glDepthMask(bgl.GL_FALSE)
 
@@ -314,9 +355,10 @@ def drawElementHilight3DFunc( obj , element, radius ,width , alpha, color = (1,1
 
 def DrawFont( text , size , positon , offset = (0,0) ) :
     font_id = 0
-    blf.size(font_id, size, dpi() )
+
+    blf.size(font_id, int( size * display.pixel_size() ) , display.inch() )
     w,h = blf.dimensions(font_id, text )
-    blf.position(font_id, positon[0] - w / 2 + offset[0] * dpm() , positon[1] + h + offset[1] * dpm() , 0)
+    blf.position(font_id, positon[0] - w / 2 + display.dot( offset[0] ) , positon[1] + h + display.dot( offset[1] ) , 0)
     blf.draw(font_id, text )
 
 
