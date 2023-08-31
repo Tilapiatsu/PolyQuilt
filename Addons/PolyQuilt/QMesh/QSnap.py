@@ -182,7 +182,8 @@ class QSnap :
 
     @classmethod
     def is_target( cls , world_pos : mathutils.Vector) -> bool :
-        dist = bpy.context.scene.tool_settings.double_threshold * 100
+        retopo_offset = bpy.context.space_data.overlay.retopology_offset
+        dist = retopo_offset * 0.5
         if cls.instance != None :
             ray = pqutil.Ray.from_world_to_screen( bpy.context , world_pos )
             if ray == None :
