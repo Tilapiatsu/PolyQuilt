@@ -334,7 +334,7 @@ def location_3d_to_region_2d( coord ) :
                        height_half + height_half * (prj.y / prj.w),
                        ))
     else:
-        return None
+        return Vector((0, 0,))
 
 def TransformBMVerts( obj , verts ) : 
     Item = collections.namedtuple('Item', ('vert', 'region' , 'world' ))
