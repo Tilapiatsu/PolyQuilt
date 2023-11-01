@@ -66,10 +66,10 @@ def batch_draw( shader , primitiveType , content  , indices = None ) :
 try :
     shaderEx = gpu.types.GPUShader(dot_line_vertex_shader, dot_line_fragment_shader)
 except Exception as e:
-    shaderEx = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+    shaderEx = gpu.shader.from_builtin('UNIFORM_COLOR')
 
-shader2D = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-shader3D = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+shader2D = gpu.shader.from_builtin('UNIFORM_COLOR')
+shader3D = gpu.shader.from_builtin('UNIFORM_COLOR')
 
 def draw_circle2D( pos , radius , color = (1,1,1,1), fill = False , subdivide = 64 , dpi = True, width : float = 1.0  ):
     if dpi :
@@ -356,7 +356,7 @@ def drawElementHilight3DFunc( obj  , bm : bmesh.types.BMesh , element, radius ,w
 def DrawFont( text , size , positon , offset = (0,0) ) :
     font_id = 0
 
-    blf.size(font_id, int( size * display.pixel_size() ) , display.inch() )
+    blf.size(font_id, int( size * display.pixel_size() ))
     w,h = blf.dimensions(font_id, text )
     blf.position(font_id, positon[0] - w / 2 + display.dot( offset[0] ) , positon[1] + h + display.dot( offset[1] ) , 0)
     blf.draw(font_id, text )
