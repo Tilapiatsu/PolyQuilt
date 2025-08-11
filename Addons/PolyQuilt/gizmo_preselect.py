@@ -22,7 +22,8 @@ from .pq_tool import *
 class PQ_Gizmo_Preselect( bpy.types.Gizmo):
     bl_idname = "MESH_GT_PQ_Preselect"
 
-    def __init__(self) :
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.bmo = None
         self.currentElement = None
         self.preferences = bpy.context.preferences.addons[__package__].preferences
@@ -35,7 +36,7 @@ class PQ_Gizmo_Preselect( bpy.types.Gizmo):
         self.temp = bmesh.new()
 
     def setup(self):
-        self.bmo = None        
+        self.bmo = None
         self.currentElement = ElementItem.Empty()
 
     def init( self , context , tool ) :
@@ -64,11 +65,11 @@ class PQ_Gizmo_Preselect( bpy.types.Gizmo):
         if PQ_GizmoGroup_Base.running_polyquilt :
             self.DrawHighlight = None
             return -1
-        
+
         if self.currentElement == None :
             self.currentElement = ElementItem.Empty()
 
-        self.mouse_pos = mathutils.Vector(location) 
+        self.mouse_pos = mathutils.Vector(location)
         if context.region == self.region :
             return -1
         if self.bmo == None :
@@ -158,7 +159,7 @@ class PQ_GizmoGroup_Base(bpy.types.GizmoGroup):
     my_tool = ToolPolyQuiltBase
     bl_idname = "MESH_GGT_PQ_Preselect"
     bl_label = "PolyQuilt Preselect Gizmo"
-    bl_options = {'3D'}    
+    bl_options = {'3D'}
     bl_region_type = 'WINDOW'
     bl_space_type = 'VIEW_3D'
     bl_idname = my_tool.bl_widget
@@ -168,11 +169,12 @@ class PQ_GizmoGroup_Base(bpy.types.GizmoGroup):
 
     running_polyquilt = False
 
-    def __init__(self) :
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.gizmo = None
 
     def __del__(self) :
-        if hasattr( self , "gizmo" ) :       
+        if hasattr( self , "gizmo" ) :
             PQ_GizmoGroup_Base.child_gizmos.remove( self.gizmo )
         if not PQ_GizmoGroup_Base.child_gizmos :
             QSnap.remove_ref()
@@ -190,7 +192,7 @@ class PQ_GizmoGroup_Base(bpy.types.GizmoGroup):
             context.window_manager.gizmo_group_type_unlink_delayed(cls.bl_idname)
             return False
         if not PQ_GizmoGroup_Base.running_polyquilt :
-            context.window.cursor_set( cls.cursor )        
+            context.window.cursor_set( cls.cursor )
         return True
 
     def setup(self, context):
@@ -200,7 +202,7 @@ class PQ_GizmoGroup_Base(bpy.types.GizmoGroup):
         PQ_GizmoGroup_Base.child_gizmos.append(self.gizmo)
 
     def refresh( self , context ) :
-        if hasattr( self , "gizmo" ) :        
+        if hasattr( self , "gizmo" ) :
             self.gizmo.refresh(context)
 
     @classmethod
